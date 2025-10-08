@@ -416,10 +416,11 @@ def main():
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
+            trust_remote_code=True,
         )
     else:
         logger.info("Training new model from scratch")
-        model = AutoModelForMaskedLM.from_config(config)
+        model = AutoModelForMaskedLM.from_config(config, trust_remote_code=True)
 
     def tokenize_function(examples, soft_masked_weight):
         res = tokenizer(

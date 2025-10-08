@@ -319,7 +319,8 @@ WANDB_PROJECT=PlantCAD python src/HF_pre_train.py \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps 4 \
     --tokenizer_name 'kuleshov-group/PlantCaduceus_l20' \
-    --config_name 'kuleshov-group/PlantCaduceus_l20'
+    --config_name 'kuleshov-group/PlantCaduceus_l20' \
+    --log_level info
 ```
 
 **Key parameters:**
@@ -384,18 +385,6 @@ The inference speed is highly dependent on the model size and GPU type. Performa
     </tr>
 </table>
 
-## Pre-train PlantCAD with huggingface
-```
-WANDB_PROJECT=PlantCAD python src/HF_pre_train.py --do_train 
-    --report_to wandb --prediction_loss_only True --remove_unused_columns False --dataset_name 'kuleshov-group/Angiosperm_16_genomes' --soft_masked_loss_weight_train 0.1 --soft_masked_loss_weight_evaluation 0.0 \
-    --weight_decay 0.01 --optim adamw_torch \
-    --dataloader_num_workers 16 --preprocessing_num_workers 16 --seed 32 \
-    --save_strategy steps --save_steps 1000 --evaluation_strategy steps --eval_steps 1000 --logging_steps 10 \
-    --max_steps 120000 --warmup_steps 1000 \
-    --save_total_limit 20 --learning_rate 2E-4 --lr_scheduler_type constant_with_warmup \
-    --run_name test --overwrite_output_dir \
-    --output_dir "PlantCaduceus_train_1" --per_device_train_batch_size 32 --per_device_eval_batch_size 32 --gradient_accumulation_steps 4 --tokenizer_name 'kuleshov-group/PlantCaduceus_l20' --config_name 'kuleshov-group/PlantCaduceus_l20'
-```
 
 ## Citation
 Zhai, J., Gokaslan, A., Schiff, Y., Berthel, A., Liu, Z. Y., Lai, W. L., Miller, Z. R., Scheben, A., Stitzer, M. C., Romay, M. C., Buckler, E. S., & Kuleshov, V. (2025). Cross-species modeling of plant genomes at single nucleotide resolution using a pretrained DNA language model. Proceedings of the National Academy of Sciences, 122(24), e2421738122. https://doi.org/10.1073/pnas.2421738122
