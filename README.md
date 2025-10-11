@@ -20,7 +20,7 @@ In addition, we’re also releasing a collection of [LoRA fine-tuned models](htt
 
 - Explore the **zero-shot** evaluation of PlantCAD2 models [here](docs/zero-shot-eval.md)
 
-
+- Explore the post-training or pre-training of PlantCAD2 [here](https://github.com/kuleshov-group/PlantCaduceus/issues/19)
 
 ## Table of Contents
 - [PlantCAD overview](#plantcad-overview)
