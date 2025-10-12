@@ -104,23 +104,45 @@ if (length(ref_seqs) > 0) {
 }
 
 
-
 if (nrow(snp_candidates) > 0) {
   cat("Formatting and writing output to", args$output, "...\n")
-  output_vcf <- data.frame(
-    chr = args$chr,
-    pos = snp_candidates$pos,
-    id = '.',
-    ref = snp_candidates$ref,
-    alt = snp_candidates$alt,
-    qual = '.',
-    filter = '.'
+    vcf_meta <- c(
+    "##fileformat=VCFv4.2",
+    paste0("##fileDate=", format(Sys.time(), "%Y%m%d")),
+    "##source=1_simulation.R",
+    paste0("##reference=", basename(args$fasta)),
+    paste0("##contig=<ID=", args$chr, ",length=", chr_lengths[args$chr], ">"),
+    '##INFO=<ID=VT,Number=1,Type=String,Description="Variant type (SNP)">',
+    '##INFO=<ID=GENE_EXT,Number=0,Type=Flag,Description="Variant lies within extended gene region">',
+    '##INFO=<ID=FLANK,Number=1,Type=Integer,Description="Flank size (bp) used to extend gene regions">'
+  )
+  vcf_header <- "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
+  con <- file(args$output, open = "wt")
+  writeLines(vcf_meta, con)
+  writeLines(vcf_header, con)
+
+  # Compose INFO field
+  info_vec <- paste0("VT=SNP;GENE_EXT;FLANK=", args$flank)
+
+  # Create the VCF body
+  vcf_body <- data.frame(
+    CHROM  = args$chr,
+    POS    = snp_candidates$pos,
+    ID     = ".",
+    REF    = snp_candidates$ref,
+    ALT    = snp_candidates$alt,
+    QUAL   = ".",
+    FILTER = "PASS",
+    INFO   = info_vec,
+    check.names = FALSE,
+    stringsAsFactors = FALSE
   )
 
+  # Write body
   write.table(
-    output_vcf,
-    file = args$output,
-    sep = '\t',
+    vcf_body,
+    file = con,
+    sep = "\t",
     quote = FALSE,
     row.names = FALSE,
     col.names = FALSE
