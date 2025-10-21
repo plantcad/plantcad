@@ -70,7 +70,7 @@ Pre-trained PlantCAD models have been uploaded to [HuggingFace 🤗](https://hug
 
 **For Google Colab:** Just a Google account - GPU runtime recommended (free tier available)
 
-**For Local Installation:** GPU recommended for reasonable performance. Dependencies will be installed automatically during setup.
+**For Local Installation: NVIDIA GPU is required!**
 
 ## Installation
 
