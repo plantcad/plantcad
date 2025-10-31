@@ -1,11 +1,16 @@
-pandas==2.1.4
-numpy<2
+pandas==2.2.3
 scipy==1.12.0
 biopython
 xgboost==2.0.3
 scikit-learn==1.4.0
 matplotlib
-transformers==4.40.0
-causal-conv1d==1.4.0
-mamba-ssm==2.2.2
-git+https://github.com/dridk/PyVCF3.git@master
+transformers==4.49.0
+peft==0.14.0
+datasets==3.3.2
+git+https://github.com/dridk/PyVCF3.git@1.0.3
+tqdm
+fire==0.7.0
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.5.1
+torchvision==0.20.1
+torchaudio==2.5.1
