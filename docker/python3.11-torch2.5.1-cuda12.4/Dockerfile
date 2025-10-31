@@ -21,6 +21,8 @@ RUN pip install --no-cache-dir \
     scikit-learn==1.6.1 \
     matplotlib==3.10.1 \
     transformers==4.49.0 \
+    peft==0.14.0 \
+    datasets==3.3.2 \
     xgboost-cpu==2.1.4 \
     git+https://github.com/dridk/PyVCF3.git@1.0.4
 
