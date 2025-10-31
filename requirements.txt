@@ -7,7 +7,7 @@ matplotlib
 transformers==4.49.0
 peft==0.14.0
 datasets==3.3.2
-git+https://github.com/dridk/PyVCF3.git@1.0.3
+git+https://github.com/dridk/PyVCF3.git@1.0.4
 tqdm
 fire==0.7.0
 --extra-index-url https://download.pytorch.org/whl/cu124
