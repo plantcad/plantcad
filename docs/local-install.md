@@ -9,7 +9,7 @@ cd PlantCaduceus
 # Create and activate environment
 conda create -n PlantCAD python=3.11
 conda activate PlantCAD
-pip install -r env/requirements.txt
+pip install -r requirements.txt
 ```
 
 **Verify torch**
@@ -19,7 +19,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 **Install mamba-ssm**
 ```bash
-pip install mamba-ssm==2.2.4 --no-build-isolation
+pip install mamba-ssm==2.2.4 causal-conv1d==1.5.0.post8 --no-build-isolation
 ```
 
 **Step 3: Verify installation**
