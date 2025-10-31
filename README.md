@@ -29,7 +29,7 @@ In addition, we’re also releasing a collection of [LoRA fine-tuned models](htt
 - [Prerequisites and system requirements](#prerequisites-and-system-requirements)
 - [Installation](#installation)
   - [Option 1: Google Colab (Recommended for beginners)](#option-1-google-colab-recommended-for-beginners)
-  - [Option 2: Local installation](#option-2-local-installation)
+  - [Option 2: Local installation](docs/local-install.md)
   - [Troubleshooting installation](#troubleshooting-installation)
 - [Basic Usage](#basic-usage)
   - [Exploring model inputs and outputs](#exploring-model-inputs-and-outputs)
@@ -83,55 +83,6 @@ Pre-trained PlantCAD models have been uploaded to [HuggingFace 🤗](https://hug
 3. Run the cells to install dependencies
 4. Upload your data or use the provided examples
 
-### Option 2: Local installation
-
-**Step 1: Create conda environment**
-```bash
-# Clone the repository (if you haven't already)
-git clone https://github.com/kuleshov-group/PlantCaduceus.git
-cd PlantCaduceus
-
-# Create and activate environment
-conda env create -f env/environment.yml
-conda activate PlantCAD
-```
-
-**Step 2: Install Python packages**
-```bash
-pip install -r env/requirements.txt --no-build-isolation
-```
-
-**Step 3: Verify installation**
-```python
-# Test core dependencies
-import torch
-from mamba_ssm import Mamba
-from transformers import AutoTokenizer, AutoModelForMaskedLM
-
-# Test PlantCAD model loading
-tokenizer = AutoTokenizer.from_pretrained('kuleshov-group/PlantCaduceus_l32')
-model = AutoModelForMaskedLM.from_pretrained('kuleshov-group/PlantCaduceus_l32', trust_remote_code=True)
-device = 'cuda:0'
-model.to(device)
-print("✅ Installation successful!")
-```
-
-**Alternative: pip-only installation**
-If you prefer pip-only installation, see [issue #10](https://github.com/kuleshov-group/PlantCaduceus/issues/10) for community solutions.
-
-### Troubleshooting installation
-
-**mamba_ssm issues (most common):**
-```bash
-# If mamba_ssm import fails, reinstall with:
-pip uninstall mamba-ssm
-pip install mamba-ssm==2.2.0 --no-build-isolation
-```
-
-**CUDA/GPU issues:**
-- Verify CUDA installation: `nvidia-smi`
-- Check PyTorch CUDA support: `python -c "import torch; print(torch.cuda.is_available())"`
-- For CPU-only usage: Models will work but be significantly slower
 
 ## Basic Usage
 

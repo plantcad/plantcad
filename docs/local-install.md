@@ -36,3 +36,17 @@ device = 'cuda:0'
 model.to(device)
 print("✅ Installation successful!")
 ```
+
+### Troubleshooting installation
+
+**mamba_ssm issues (most common):**
+```bash
+# If mamba_ssm import fails, reinstall with:
+pip uninstall mamba-ssm
+pip install mamba-ssm==2.4.0 --no-build-isolation
+```
+
+**CUDA/GPU issues:**
+- Verify CUDA installation: `nvidia-smi`
+- Check PyTorch CUDA support: `python -c "import torch; print(torch.cuda.is_available())"`
+- For CPU-only usage: Models will work but be significantly slower
