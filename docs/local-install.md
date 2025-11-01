@@ -22,7 +22,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 pip install mamba-ssm==2.2.4 causal-conv1d==1.5.0.post8 --no-build-isolation
 ```
 
-**Step 3: Verify installation**
+**Verify installation**
 ```python
 # Test core dependencies
 import torch
