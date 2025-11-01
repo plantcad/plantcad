@@ -30,7 +30,6 @@ In addition, we’re also releasing a collection of [LoRA fine-tuned models](htt
 - [Installation](#installation)
   - [Option 1: Google Colab (Recommended for beginners)](#option-1-google-colab-recommended-for-beginners)
   - [Option 2: Local installation](docs/local-install.md)
-  - [Troubleshooting installation](#troubleshooting-installation)
 - [Basic Usage](#basic-usage)
   - [Exploring model inputs and outputs](#exploring-model-inputs-and-outputs)
   - [Zero-shot mutation effect scoring](#zero-shot-mutation-effect-scoring)
@@ -51,7 +50,7 @@ PlantCaduceus, with its short name of **PlantCAD**, is a plant DNA LM based on t
 
 **New to PlantCAD?** Try our [Google Colab demo](https://colab.research.google.com/drive/1QW9Lgwra0vHQAOICE2hsIVcp6DKClyhO?usp=sharing) - no installation required!
 
-**For local usage:** See installation instructions below, then use `notebooks/examples.ipynb` to get started.
+**For local usage:** See installation instructions [here](docs/local-install.md), then use `notebooks/examples.ipynb` to get started.
 
 ## Model summary
 Pre-trained PlantCAD models have been uploaded to [HuggingFace 🤗](https://huggingface.co/collections/kuleshov-group/plantcaduceus-512bp-len-665a229ee098db706a55e44a). Here's the summary of four PlantCAD models with different parameter sizes.
@@ -231,7 +230,7 @@ python src/predict_XGBoost.py \
 
 ### Pre-training PlantCAD
 
-For advanced users who want to pre-train PlantCAD models from scratch or fine-tune on custom datasets.
+For advanced users who want to pre-train PlantCAD or PlantCAD2 models from scratch or fine-tune on custom datasets.
 
 **Requirements:**
 - Large computational resources (multi-GPU recommended)
@@ -246,8 +245,8 @@ WANDB_PROJECT=PlantCAD python src/HF_pre_train.py \
     --prediction_loss_only True \
     --remove_unused_columns False \
     --dataset_name 'kuleshov-group/Angiosperm_16_genomes' \
-    --soft_masked_loss_weight_train 0.1 \
-    --soft_masked_loss_weight_evaluation 0.0 \
+    --soft_masked_loss_weights_train 0.1 \
+    --soft_masked_loss_weights_evaluation 0.0 \
     --weight_decay 0.01 \
     --optim adamw_torch \
     --dataloader_num_workers 16 \
