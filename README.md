@@ -138,7 +138,6 @@ Estimate the functional impact of genetic variants using PlantCAD's log-likeliho
 1. **VCF files** (recommended): Standard variant format with reference genome
 2. **TSV files**: Pre-processed sequences with variant information
 
-**Basic usage with VCF:**
 ```bash
 # Download example reference genome
 wget https://download.maizegdb.org/Zm-B73-REFERENCE-NAM-5.0/Zm-B73-REFERENCE-NAM-5.0.fa.gz
@@ -156,25 +155,6 @@ python src/zero_shot_score.py \
 **Expected output:**
 - Scored VCF file with PlantCAD scores in the INFO field
 - Scores represent log-likelihood ratios between reference and alternative allelesLow negative scores indicate more likely deleterious mutations
-
-
-**Convert VCF to table format** (optional, for easier processing):
-```bash
-bash src/format_VCF.sh \
-    examples/example_maize_snp.vcf \
-    Zm-B73-REFERENCE-NAM-5.0.fa \
-    formatted_variants.tsv
-```
-
-**Use table format directly:**
-```bash
-python src/zero_shot_score.py \
-    -input-table formatted_variants.tsv \
-    -output results.tsv \
-    -model 'kuleshov-group/PlantCaduceus_l32' \
-    -device 'cuda:0' \
-    -outBED  # Optional: output in BED format
-```
 
 ### In-silico mutagenesis pipeline
 
