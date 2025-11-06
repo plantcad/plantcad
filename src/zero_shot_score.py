@@ -28,11 +28,16 @@ def parse_args():
     parser.add_argument("-batchSize", dest="batchSize", default=128, type=int, help="The batch size for the model")
     parser.add_argument("-numWorkers", dest="numWorkers", default=4, type=int,
                         help="The number of workers for the model")
-    parser.add_argument("-tokenIdx", dest="tokenIdx", default=255, type=int, help="The index of the nucleotide to mask")
+    parser.add_argument("-contextSize", dest="contextSize", default=512, type=int,
+                        help="The context window size (default: 512)")
     args = parser.parse_args()
 
     if args.inputVCF is not None and args.inputFasta is None:
         sys.exit("-input-fasta is required with -input-vcf")
+
+    # Calculate tokenIdx as the middle of the context window
+    # For a 512 window: tokenIdx = 255 (255 bases before, variant at 256 （1-based coordinates）, 256 bases after)
+    args.tokenIdx = args.contextSize // 2 - 1
 
     return args
 
@@ -190,7 +195,7 @@ def seq_from_vcf(args):
     vcfReader = vcf.Reader(filename=args.inputVCF)
     recordIdx = 0
     prevChrom = ""
-    addIdx = 512 - args.tokenIdx
+    addIdx = args.contextSize - args.tokenIdx
 
     for record in vcfReader:
         if any([alt.type == "SNV" for alt in record.ALT]):
@@ -199,9 +204,9 @@ def seq_from_vcf(args):
 
             try:
                 if pos - args.tokenIdx < 0:
-                    seq = str(fastaDict[chrom][0:pos + addIdx].seq).upper().rjust(512, "N")
+                    seq = str(fastaDict[chrom][0:pos + addIdx].seq).upper().rjust(args.contextSize, "N")
                 else:
-                    seq = str(fastaDict[chrom][pos - args.tokenIdx:pos + addIdx].seq).upper().ljust(512, "N")
+                    seq = str(fastaDict[chrom][pos - args.tokenIdx:pos + addIdx].seq).upper().ljust(args.contextSize, "N")
 
                 sequences.append(seq)
                 recordIndices.append(recordIdx)
