@@ -71,8 +71,11 @@ print("✅ Installation successful!")
 ```bash
 # If mamba_ssm import fails, reinstall with:
 pip uninstall mamba-ssm
-pip install mamba-ssm==2.4.0 --no-build-isolation
+pip install mamba-ssm==2.2.4 --no-build-isolation
 ```
+
+If it still doesn’t work, try installing the official precompiled wheel from the Mamba repository:
+👉 https://github.com/state-spaces/mamba/releases/tag/v2.2.4
 
 **CUDA/GPU issues:**
 - Verify CUDA installation: `nvidia-smi`
