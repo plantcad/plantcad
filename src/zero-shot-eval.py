@@ -323,8 +323,8 @@ def _avg_trueprob_scores(
 class ZeroShotEval:
     def evo_cons(
         self,
-        repo_id: str,
-        task: str,
+        repo_id: str = "",
+        task: str = "",
         split: str = "valid",
         model: str = "kuleshov-group/PlantCAD2-Small-l24-d0768",
         device: str = "cuda:0",
@@ -334,15 +334,23 @@ class ZeroShotEval:
         save_logits: Optional[str] = None,
         logits_path: Optional[str] = None,
         metrics_json: Optional[str] = None,
+        input_tsv: Optional[str] = None,
     ) -> None:
         """Compute masked-token probabilities at a single index and AUROC against labels.
 
         Expects dataset columns: `<seq_column>`, `label`. If `logits_path` is provided, loads TSV and skips inference.
+        If `input_tsv` is provided, loads data from local TSV file instead of HuggingFace.
         """
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
         logger.info("Loading dataset")
-        ds = load_dataset(repo_id, task)
-        df = ds[split].to_pandas()
+        if input_tsv:
+            logger.info(f"Loading data from local TSV: {input_tsv}")
+            df = pd.read_csv(input_tsv, sep="\t")
+        else:
+            if not repo_id or not task:
+                raise ValueError("Either input_tsv or both repo_id and task must be provided")
+            ds = load_dataset(repo_id, task)
+            df = ds[split].to_pandas()
         if logits_path is not None:
             probs = pd.read_csv(logits_path, sep="\t").values
         else:
@@ -371,8 +379,8 @@ class ZeroShotEval:
 
     def motif_acc(
         self,
-        repo_id: str,
-        task: str,
+        repo_id: str = "",
+        task: str = "",
         split: str = "valid",
         model: str = "kuleshov-group/PlantCAD2-Small-l24-d0768",
         device: str = "cuda:0",
@@ -383,16 +391,24 @@ class ZeroShotEval:
         save_logits: Optional[str] = None,
         logits_path: Optional[str] = None,
         metrics_json: Optional[str] = None,
+        input_tsv: Optional[str] = None,
     ) -> None:
         """Compute multi-position masked probabilities and token/motif accuracy.
 
         Expects dataset column: `<seq_column>`.
         If `logits_path` is provided, loads TSV of probabilities and skips model inference.
+        If `input_tsv` is provided, loads data from local TSV file instead of HuggingFace.
         """
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
         logger.info("Loading dataset")
-        ds = load_dataset(repo_id, task)
-        df = ds[split].to_pandas()
+        if input_tsv:
+            logger.info(f"Loading data from local TSV: {input_tsv}")
+            df = pd.read_csv(input_tsv, sep="\t")
+        else:
+            if not repo_id or not task:
+                raise ValueError("Either input_tsv or both repo_id and task must be provided")
+            ds = load_dataset(repo_id, task)
+            df = ds[split].to_pandas()
 
         # Fire parses sequences when annotated, so this accepts:
         # --mask-idx=1,2,3  or  --mask-idx="[1,2,3]"  etc.
@@ -424,8 +440,8 @@ class ZeroShotEval:
 
     def sv_effect(
         self,
-        repo_id: str,
-        task: str,
+        repo_id: str = "",
+        task: str = "",
         split: str = "valid",
         model: str = "kuleshov-group/PlantCAD2-Small-l24-d0768",
         device: str = "cuda:0",
@@ -434,15 +450,23 @@ class ZeroShotEval:
         output: Optional[str] = None,
         save_ref_logits: Optional[str] = None,
         save_mut_logits: Optional[str] = None,
+        input_tsv: Optional[str] = None,
     ) -> None:
-        """Evaluate SV effect from a Hugging Face dataset split.
+        """Evaluate SV effect from a Hugging Face dataset split or local TSV file.
 
         Dataset must contain columns: RefSeq, MutSeq, left, right, label (labels as 0/1).
         Computes mean LLR score per row and prints AUPRC. Optionally writes scored TSV.
+        If `input_tsv` is provided, loads data from local TSV file instead of HuggingFace.
         """
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-        ds = load_dataset(repo_id, task)
-        df = ds[split].to_pandas()
+        if input_tsv:
+            logger.info(f"Loading data from local TSV: {input_tsv}")
+            df = pd.read_csv(input_tsv, sep="\t")
+        else:
+            if not repo_id or not task:
+                raise ValueError("Either input_tsv or both repo_id and task must be provided")
+            ds = load_dataset(repo_id, task)
+            df = ds[split].to_pandas()
         required = ["RefSeq", "MutSeq", "left", "right", "label"]
         missing = [c for c in required if c not in df.columns]
         if missing:
@@ -473,8 +497,8 @@ class ZeroShotEval:
 
     def core_noncore(
         self,
-        repo_id: str,
-        task: str,
+        repo_id: str = "",
+        task: str = "",
         split: str = "valid",
         model: str = "kuleshov-group/PlantCAD2-Small-l24-d0768",
         device: str = "cuda:0",
@@ -486,17 +510,25 @@ class ZeroShotEval:
         save_logits: Optional[str] = None,
         logits_path: Optional[str] = None,
         metrics_json: Optional[str] = None,
+        input_tsv: Optional[str] = None,
     ) -> None:
         """Core vs non-core classification via averaged true-base probability across masked positions.
 
         Expects dataset columns: `<seq_column>`, `<label_column>`.
         If `logits_path` is provided, loads TSV probabilities (A,C,G,T) and skips model inference.
+        If `input_tsv` is provided, loads data from local TSV file instead of HuggingFace.
         Reports AUROC.
         """
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
         logger.info("Loading dataset")
-        ds = load_dataset(repo_id, task)
-        df = ds[split].to_pandas()
+        if input_tsv:
+            logger.info(f"Loading data from local TSV: {input_tsv}")
+            df = pd.read_csv(input_tsv, sep="\t")
+        else:
+            if not repo_id or not task:
+                raise ValueError("Either input_tsv or both repo_id and task must be provided")
+            ds = load_dataset(repo_id, task)
+            df = ds[split].to_pandas()
 
         # Fire parses sequences when annotated, so this accepts:
         # --mask-idx=1,2,3  or  --mask-idx="[1,2,3]"  etc.
