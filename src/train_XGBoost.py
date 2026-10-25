@@ -88,6 +88,7 @@ def load_model_and_tokenizer(model_dir, device):
     except Exception as e:
         logging.error(f"Failed to load model with {optimal_dtype}, falling back to float32. Error: {e}")
         model = AutoModelForMaskedLM.from_pretrained(model_dir, trust_remote_code=True, torch_dtype=torch.float32)
+    logging.info(f"Model weights loaded as {next(model.parameters()).dtype}")
 
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
     model.to(device)
