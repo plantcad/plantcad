@@ -180,7 +180,7 @@ def seq_from_vcf_sv(args):
         else:
             # Heuristic based on length
             ref_len = len(record.REF)
-            if record.ALT and record.ALT[0]:
+            if record.ALT and record.ALT[0] and hasattr(record.ALT[0], "sequence"):
                 alt_len = len(record.ALT[0].sequence)
                 if ref_len > alt_len:
                     is_deletion = True
@@ -197,11 +197,19 @@ def seq_from_vcf_sv(args):
             
             # Calculate deleted region
             ref_seq_str = str(record.REF)
-            alt_seq_str = str(record.ALT[0].sequence)
+            if hasattr(record.ALT[0], "sequence"):
+                alt_seq_str = str(record.ALT[0].sequence)
+            elif str(record.ALT[0]) == "<DEL>" and 'END' in record.INFO:
+                alt_seq_str = ref_seq_str[:1]  # symbolic deletion: REF is the padding base, END the last deleted base
+            else:
+                logging.warning(f"Skipping deletion at {chrom}:{record.POS}: ALT {record.ALT[0]} is not a sequence or <DEL> with END")
+                continue
             
-            # Verify that ALT is a prefix of REF (standard VCF) or just handle generic replacement
-            # For pure deletion, ALT should be the first char of REF.
-            # If complex indel, we just take REF and ALT as given.
+            # ALT must be a prefix of REF (standard VCF; for a pure deletion ALT is the anchor base):
+            # the mutant keeps ALT and deletes the rest of REF. Other (complex) alleles are skipped.
+            if not ref_seq_str.upper().startswith(alt_seq_str.upper()):
+                logging.warning(f"Skipping deletion at {chrom}:{record.POS}: ALT is not a prefix of REF")
+                continue
             
             del_start_idx = pos + len(alt_seq_str) # First deleted base index
             del_end_idx = pos + len(ref_seq_str)   # First kept base index after deletion
@@ -227,8 +235,8 @@ def seq_from_vcf_sv(args):
                 logging.warning(f"Sequence {chrom}:{pos} out of bounds. Skipping.")
                 continue
 
-            if len(record.REF) >= half - flank:
-                logging.warning(f"Skipping Deletion at {chrom}:{pos} because length {len(record.REF)} >= half {half} - flank {flank}")
+            if end_1indexed - record.POS + 1 >= half - flank:
+                logging.warning(f"Skipping Deletion at {chrom}:{pos} because length {end_1indexed - record.POS + 1} >= half {half} - flank {flank}")
                 continue
             
             ref_seq_content = str(fastaDict[chrom].seq[ref_seq_start:ref_seq_end]).upper()
@@ -239,7 +247,7 @@ def seq_from_vcf_sv(args):
                 exit(1)
             
             # Indices in RefSeq corresponding to the flanks
-            del_start_for_flanks = record.POS - 1  # 0-indexed position of kept base
+            del_start_for_flanks = del_start_idx  # 0-indexed first deleted base; the left flank ends at the anchor
             del_end_for_flanks = end_1indexed  # 0-indexed start of right flank
             
             ref_left_indices = [p - ref_seq_start for p in range(del_start_for_flanks - flank, del_start_for_flanks)]
@@ -249,7 +257,7 @@ def seq_from_vcf_sv(args):
             
             # MutSeq Construction
 
-            del_start_0indexed = record.POS - 1
+            del_start_0indexed = del_start_idx  # keep the anchor: only the REF bases after ALT are deleted
             mut_left_start = del_start_0indexed - half
             mut_left_end = del_start_0indexed
             
@@ -314,6 +322,9 @@ def seq_from_vcf_sv(args):
                 logging.warning(f"Sequence {chrom}:{pos} out of bounds. Skipping.")
                 continue
             
+            if not hasattr(record.ALT[0], "sequence") or str(record.ALT[0])[:1].upper() != str(record.REF)[:1].upper():
+                logging.warning(f"Skipping insertion at {chrom}:{pos}: ALT {record.ALT[0]} is not a sequence starting with the anchor base")
+                continue
             ins_seq = str(record.ALT[0].sequence)[1:]
             ins_len = len(ins_seq)
             
@@ -330,7 +341,7 @@ def seq_from_vcf_sv(args):
             # Ref Indices (Flanks around insertion point)
             # Anchor index relative to ref_seq_start
             anchor_idx_ref = (pos - 1) - ref_seq_start
-            ref_left_indices = list(range(anchor_idx_ref - flank, anchor_idx_ref))
+            ref_left_indices = list(range(anchor_idx_ref - flank + 1, anchor_idx_ref + 1))
             ref_right_indices = list(range(anchor_idx_ref + len(record.REF), anchor_idx_ref + flank + len(record.REF)))
             ref_indices = ref_left_indices + ref_right_indices
             
@@ -338,14 +349,14 @@ def seq_from_vcf_sv(args):
             # Insert ALT[1:] after Anchor.
             
 
-            mut_seq_left = str(fastaDict[chrom].seq[ref_seq_start:(center_1indexed-1)]).upper() + ins_seq
+            mut_seq_left = str(fastaDict[chrom].seq[ref_seq_start:center_1indexed]).upper() + ins_seq
             right_start = center_1indexed+len(record.REF)-1
             right_end = right_start + (args.contextSize - len(mut_seq_left))
             mut_seq_right = str(fastaDict[chrom].seq[right_start:right_end]).upper()
             mut_seq_content = mut_seq_left + mut_seq_right
 
-            mut_left_indices = list(range(anchor_idx_ref - flank, anchor_idx_ref))
-            mut_right_indices = list(range(anchor_idx_ref + len(record.ALT[0]) - 1, anchor_idx_ref + flank + len(record.ALT[0]) - 1))
+            mut_left_indices = list(range(anchor_idx_ref - flank + 1, anchor_idx_ref + 1))
+            mut_right_indices = list(range(anchor_idx_ref + len(record.ALT[0]), anchor_idx_ref + flank + len(record.ALT[0])))
             mut_indices = mut_left_indices + mut_right_indices
             
             
@@ -373,22 +384,23 @@ def main():
     ref_seqs, mut_seqs, ref_indices, mut_indices, records = seq_from_vcf_sv(args)
     
     if not ref_seqs:
-        logging.error("No SVs found or processed.")
-        sys.exit(0)
+        # Nothing could be scored: still write every record (without a score) so that the output exists
+        logging.warning("No SVs could be scored; writing all records without PlantCAD_SV_Score.")
+        ref_probs, mut_probs = [], []
+    else:
+        # Load Model
+        model, tokenizer = load_model_and_tokenizer(args.model, args.device)
 
-    # Load Model
-    model, tokenizer = load_model_and_tokenizer(args.model, args.device)
+        # Inference on Ref
+        logging.info("Running inference on Reference Sequences...")
+        ref_loader = create_dataloader(ref_seqs, tokenizer, args.batchSize)
+        ref_probs = extract_logits_at_indices(model, ref_loader, args.device, tokenizer, ref_indices)
 
-    # Inference on Ref
-    logging.info("Running inference on Reference Sequences...")
-    ref_loader = create_dataloader(ref_seqs, tokenizer, args.batchSize)
-    ref_probs = extract_logits_at_indices(model, ref_loader, args.device, tokenizer, ref_indices)
-    
-    # Inference on Mut
-    logging.info("Running inference on Mutated Sequences...")
-    mut_loader = create_dataloader(mut_seqs, tokenizer, args.batchSize)
-    mut_probs = extract_logits_at_indices(model, mut_loader, args.device, tokenizer, mut_indices)
-    
+        # Inference on Mut
+        logging.info("Running inference on Mutated Sequences...")
+        mut_loader = create_dataloader(mut_seqs, tokenizer, args.batchSize)
+        mut_probs = extract_logits_at_indices(model, mut_loader, args.device, tokenizer, mut_indices)
+
     # Calculate Scores and Write Output
     logging.info(f"Calculating scores and writing to {args.output}")
     
