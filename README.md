@@ -109,11 +109,12 @@ Pre-trained models have been uploaded to **HuggingFace 🤗**: [PlantCAD](https:
 > </details>
 ## Installation
 
-| Option | Best for |
-| :--- | :--- |
-| [Google Colab](https://colab.research.google.com/drive/1QW9Lgwra0vHQAOICE2hsIVcp6DKClyhO?usp=sharing) | Beginners — no installation required |
-| [Local installation](docs/local-install.md) | Regular use — requires NVIDIA GPU |
-| [Docker](docker/README.md) | Reproducible environments |
+| Option | Notes |
+|---|---|
+| Google Colab | Beginners — no installation required |
+| Local installation (NVIDIA) | Standard local installation guide |
+| Local installation (AMD/ROCm) | Community-tested PlantCAD2 Medium/Large inference on MI250X — see [setup and results](https://github.com/plantcad/plantcad/issues/44) |
+| Docker | Reproducible environments |
 
 ## Quick example
 
