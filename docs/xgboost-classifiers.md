@@ -46,3 +46,9 @@ python src/predict_XGBoost.py \
 ```
 
 **Expected output**: Predictions with confidence scores for each sequence in your test data.
+
+## GPU memory
+
+Embedding extraction runs the model with `output_hidden_states=True`, so memory grows fast with `-batchSize` (default 128 in both scripts). With `PlantCaduceus_l32` (weights loaded in float32), peak memory is about 3.5 GB at `-batchSize 8`, 6.2 GB at 16 and 11.4 GB at 32, measured on an RTX 2070 SUPER. On an 8 GB GPU, use `-batchSize 8`.
+
+Running out of GPU memory here can show up as `CUBLAS_STATUS_EXECUTION_FAILED` instead of an out-of-memory error.
