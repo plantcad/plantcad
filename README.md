@@ -153,7 +153,6 @@ See `notebooks/examples.ipynb` for more detailed examples.
 | Guide | Description |
 | :--- | :--- |
 | **[Zero-shot SNP & Region Scoring](docs/zero-shot-scoring.md)** | Score variants (VCF) or genomic regions (BED) using log-likelihood ratios |
-| **[Markov Background Correction](docs/zero-shot-scoring.md#markov-background-correction)** ⭐ | Remove inflated conservation in repeats/TEs from zero-shot scores (strongly recommended) |
 | **[Zero-shot SV Scoring](docs/zero-shot-scoring-sv.md)** | Score structural variants (deletions & insertions) |
 | **[XGBoost Classifiers](docs/xgboost-classifiers.md)** | Train or use pre-trained classifiers for TIS, TTS, splice sites |
 | **[In-silico Mutagenesis](pipelines/in-silico-mutagenesis/README.md)** | Large-scale simulation and analysis of genetic variants |
