@@ -224,18 +224,4 @@ corrected_score = plantcad_llr − markov_llr
 - Contexts that contain `N` or run off a chromosome end back off to the longest valid suffix.
 - Inside repeats the k-mer model is confident, so `markov_llr` is strongly negative and the correction is large. In functional sequence a 13-mer predicts the base poorly, so `markov_llr ≈ 0` and the score barely changes.
 
-### Benchmark (maize chr8)
-
-287,547 simulated SNVs on B73 chr8 (20k per VEP consequence), scored with `PlantCaduceus_l32` at 512 bp. Lower scores mean more deleterious. "Functional" = stop-gained + splice donor/acceptor; `repeat` = TE-overlapping intergenic/intron/up-/downstream variants.
-
-| Score | Repeat gap¹ | AUROC functional vs repeat | AUROC functional vs intergenic | AUROC missense vs synonymous |
-| :--- | ---: | ---: | ---: | ---: |
-| Raw PlantCAD | −1.20 | 0.859 | 0.917 | 0.716 |
-| Corrected, upstream context only | −0.14 | 0.901 | 0.914 | 0.717 |
-| **Corrected (default)** | **−0.18** | **0.907** | **0.919** | **0.721** |
-
-¹ median(repeat) − median(non-TE intergenic); closer to 0 means repeats no longer look conserved.
-
-The defaults were chosen from two experiments. Counting both strands predicts held-out chr8 better than the + strand alone (0.965 vs 0.981 bits/base), and a pseudocount of 2 beats interpolated backoff. Averaging the upstream and downstream contexts gives the best functional-vs-repeat separation without lowering functional-vs-intergenic AUROC.
-
 To reproduce the figure above, see [`pipelines/markov-correction/`](../pipelines/markov-correction/README.md).
