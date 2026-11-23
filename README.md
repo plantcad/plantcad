@@ -23,7 +23,6 @@ A new DNA foundation model for angiosperms, with [LoRA fine-tuned models](https:
 - [PlantCAD overview](#plantcad-overview)
 - [Quick Start](#quick-start)
 - [Model summary](#model-summary)
-- [Installation](#installation)
 - [Quick example](#quick-example)
 - [Usage guides](#usage-guides)
 - [Citations](#citations)
@@ -34,9 +33,14 @@ PlantCaduceus, with its short name of **PlantCAD**, is a plant DNA LM based on t
 
 ## Quick Start
 
-**New to PlantCAD?** Try our [Google Colab demo](https://colab.research.google.com/drive/1QW9Lgwra0vHQAOICE2hsIVcp6DKClyhO?usp=sharing) - no installation required!
+| Option | Best for |
+| :--- | :--- |
+| [Google Colab demo](https://colab.research.google.com/drive/1QW9Lgwra0vHQAOICE2hsIVcp6DKClyhO?usp=sharing) | New users — runs in the browser, no installation |
+| [Local installation (NVIDIA GPU)](docs/local-install.md) | Regular use — then open `notebooks/examples.ipynb` |
+| [Docker](docker/README.md) | Reproducible environments, HPC clusters |
+| [Local installation (AMD/ROCm)](https://github.com/plantcad/plantcad/issues/44) | Community-tested PlantCAD2 Medium/Large inference on MI250X |
 
-**For local usage:** See installation instructions [here](docs/local-install.md), then use `notebooks/examples.ipynb` to get started.
+Then see the [Quick example](#quick-example) below or the [Usage guides](#usage-guides).
 
 ## Model summary
 
@@ -107,14 +111,6 @@ Pre-trained models have been uploaded to **HuggingFace 🤗**: [PlantCAD](https:
 > ```
 >
 > </details>
-## Installation
-
-| Option | Notes |
-|---|---|
-| Google Colab | Beginners — no installation required |
-| Local installation (NVIDIA) | Standard local installation guide |
-| Local installation (AMD/ROCm) | Community-tested PlantCAD2 Medium/Large inference on MI250X — see [setup and results](https://github.com/plantcad/plantcad/issues/44) |
-| Docker | Reproducible environments |
 
 ## Quick example
 
@@ -157,6 +153,7 @@ See `notebooks/examples.ipynb` for more detailed examples.
 | Guide | Description |
 | :--- | :--- |
 | **[Zero-shot SNP & Region Scoring](docs/zero-shot-scoring.md)** | Score variants (VCF) or genomic regions (BED) using log-likelihood ratios |
+| **[Markov Background Correction](docs/zero-shot-scoring.md#markov-background-correction)** ⭐ | Remove inflated conservation in repeats/TEs from zero-shot scores (strongly recommended) |
 | **[Zero-shot SV Scoring](docs/zero-shot-scoring-sv.md)** | Score structural variants (deletions & insertions) |
 | **[XGBoost Classifiers](docs/xgboost-classifiers.md)** | Train or use pre-trained classifiers for TIS, TTS, splice sites |
 | **[In-silico Mutagenesis](pipelines/in-silico-mutagenesis/README.md)** | Large-scale simulation and analysis of genetic variants |

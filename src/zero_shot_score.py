@@ -10,6 +10,8 @@ import vcf
 from Bio import SeqIO
 import gzip
 
+from markov_background import MarkovBackground
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -44,7 +46,31 @@ def parse_args():
     bed_group.add_argument("-output-raw-prob", dest="outputRawProb", action="store_true", default=False,
                         help="Output raw probabilities in addition to scores for genome-wide scoring.")
 
+    # Markov k-mer background correction (both modes)
+    markov_group = parser.add_argument_group(
+        'Markov background correction (recommended)',
+        'Subtract the LLR of a genome-wide k-mer Markov model from the PlantCAD LLR to remove '
+        'over-estimated conservation in repeats/TEs. Build the table with src/markov_background.py.')
+    markov_group.add_argument("-markov-table", dest="markovTable", type=str, default=None,
+                              help="Path to a k-mer count table (.npz) built by src/markov_background.py. "
+                                   "When given, corrected scores are reported alongside the raw scores.")
+    markov_group.add_argument("-markov-smoothing", dest="markovSmoothing", default="add",
+                              choices=["add", "backoff"],
+                              help="Smoothing of the Markov model: additive pseudocounts (default) or "
+                                   "interpolated backoff to shorter contexts.")
+    markov_group.add_argument("-markov-alpha", dest="markovAlpha", default=None, type=float,
+                              help="Pseudocount (add) or backoff strength (backoff). "
+                                   "Defaults: 2 for add, 8 for backoff.")
+    markov_group.add_argument("-markov-direction", dest="markovDirection", default="both",
+                              choices=["both", "left"],
+                              help="Context used by the Markov model: 'both' (default) averages the upstream "
+                                   "(+ strand) and downstream (- strand) k-mer contexts, matching PlantCAD's "
+                                   "bidirectionality; 'left' uses only the k upstream bases.")
+
     args = parser.parse_args()
+
+    if args.markovAlpha is None:
+        args.markovAlpha = 2.0 if args.markovSmoothing == "add" else 8.0
 
     if (args.inputVCF is not None or args.inputBed is not None) and args.inputFasta is None:
         sys.exit("-input-fasta is required with -input-vcf or -input-bed")
@@ -199,13 +225,18 @@ def load_bed_file(bed_path):
     return bed_df
 
 
-def extract_sequences_from_bed(args, bed_df, fasta_dict):
-    """Extract sequences using windowed approach for BED regions."""
+def extract_sequences_from_bed(args, bed_df, fasta_dict, markov_k=None):
+    """Extract sequences using windowed approach for BED regions.
+
+    If markov_k is given, also returns the upstream/downstream k-bp contexts of every position
+    (for the Markov background correction).
+    """
     logging.info("Extracting sequences from BED regions with windowed approach")
 
     sequences = []
     position_info = []  # Store chr, pos, ref_allele for each position
     window_sizes = []  # Track actual number of valid positions per window
+    markov_ctx = []  # (left, right) context per position, only if markov_k is set
 
     addIdx = args.contextSize - args.tokenIdx
 
@@ -257,25 +288,43 @@ def extract_sequences_from_bed(args, bed_df, fasta_dict):
 
                 for pos, ref in zip(window_positions, window_refs):
                     position_info.append({'chr': chrom, 'pos': pos, 'ref': ref})
+                    if markov_k is not None:
+                        markov_ctx.append(markov_contexts(seq, args.tokenIdx + (pos - center_pos_int), markov_k))
 
             except Exception as e:
                 logging.warning(f"Error processing window {chrom}:{window_start}-{window_end}, skipping. Error: {e}")
                 continue
 
     logging.info(f"Extracted {len(sequences)} windows covering {len(position_info)} positions")
+    if markov_k is not None:
+        return sequences, position_info, window_sizes, markov_ctx
     return sequences, position_info, window_sizes
 
 
-def calculate_genome_wide_llr(position_info, probs_array, aggregation):
-    """Calculate log likelihood ratios for each position."""
+def _aggregate(llrs, aggregation):
+    if aggregation == "max":
+        return max(llrs)
+    if aggregation == "average":
+        return np.mean(llrs)
+    return llrs
+
+
+def calculate_genome_wide_llr(position_info, probs_array, aggregation, markov_logp=None):
+    """Calculate log likelihood ratios for each position.
+
+    If markov_logp (n, 4) is given, Markov-corrected LLRs (PlantCAD LLR - Markov LLR) are added and
+    aggregated the same way as the raw LLRs.
+    """
     logging.info("Calculating genome-wide log likelihood ratios")
 
     nucleotides = ['A', 'C', 'G', 'T']
     results = []
 
     assert len(probs_array) == len(position_info), f"Mismatch: {len(probs_array)} probs vs {len(position_info)} positions"
+    if markov_logp is not None:
+        assert len(markov_logp) == len(position_info)
 
-    for pos_info, probs in zip(position_info, probs_array):
+    for i, (pos_info, probs) in enumerate(zip(position_info, probs_array)):
         ref_allele = pos_info['ref']
         ref_idx = nucleotides.index(ref_allele)
         ref_prob = probs[ref_idx]
@@ -297,12 +346,13 @@ def calculate_genome_wide_llr(position_info, probs_array, aggregation):
             'llrs': llrs
         }
 
-        if aggregation == "max":
-            result['score'] = max(llrs)
-        elif aggregation == "average":
-            result['score'] = np.mean(llrs)
-        elif aggregation == "all":
-            result['scores'] = llrs
+        key = 'scores' if aggregation == "all" else 'score'
+        result[key] = _aggregate(llrs, aggregation)
+
+        if markov_logp is not None:
+            markov_llrs = [markov_logp[i][j] - markov_logp[i][ref_idx] for j in alt_indices]
+            result['markov_llrs'] = markov_llrs
+            result['corrected_' + key] = _aggregate([l - m for l, m in zip(llrs, markov_llrs)], aggregation)
 
         results.append(result)
 
@@ -313,13 +363,17 @@ def write_llr_output(results, output_path, aggregation, output_raw_prob):
     """Write genome-wide LLR results to output file."""
     logging.info(f"Writing LLR results to {output_path}")
 
+    has_markov = bool(results) and 'markov_llrs' in results[0]
+
     with open(output_path, 'w') as f:
         if aggregation == "all":
             header = "chr\tstart\tend\tref\talt_alleles\tscores"
             if output_raw_prob: header += "\tref_prob\talt_probs"
+            if has_markov: header += "\tcorrected_scores\tmarkov_llrs"
         else:
             header = "chr\tstart\tend\tref\tscore"
             if output_raw_prob: header += "\tref_prob\talt_probs"
+            if has_markov: header += "\tcorrected_score\tmarkov_llrs"
         f.write(header + "\n")
 
         for result in results:
@@ -336,6 +390,12 @@ def write_llr_output(results, output_path, aggregation, output_raw_prob):
                 if output_raw_prob:
                     alt_probs_str = ','.join([f"{p:.6f}" for p in result['alt_probs']])
                     line += f"\t{result['ref_prob']:.6f}\t{alt_probs_str}"
+            if has_markov:
+                if aggregation == "all":
+                    line += "\t" + ','.join([f"{s:.6f}" for s in result['corrected_scores']])
+                else:
+                    line += f"\t{result['corrected_score']:.6f}"
+                line += "\t" + ','.join([f"{m:.6f}" for m in result['markov_llrs']])
             f.write(line + "\n")
 
 
@@ -352,19 +412,50 @@ def zero_shot_score(snpDF, logits):
     return res
 
 
-def zero_shot_score_vcf(args, recordIndices, logits):
+def load_markov_model(args):
+    return MarkovBackground(args.markovTable, smoothing=args.markovSmoothing,
+                            alpha=args.markovAlpha, direction=args.markovDirection)
+
+
+def markov_contexts(seq, idx, k):
+    """Upstream and downstream k-bp contexts around position idx of seq."""
+    return seq[max(0, idx - k):idx], seq[idx + 1:idx + 1 + k]
+
+
+def markov_log_probs(markov, sequences, tokenIdx):
+    """Markov log P(A/C/G/T) at the centre position of each context sequence, shape (n, 4)."""
+    logging.info("Computing Markov background log-probabilities")
+    contexts = [markov_contexts(seq, tokenIdx, markov.k) for seq in sequences]
+    left, right = zip(*contexts) if contexts else ((), ())
+    return markov.log_probs(list(left), list(right))
+
+
+def _add_info_header(reader, info_id, desc):
+    reader.infos[info_id] = vcf.parser._Info(
+        info_id, vcf.parser.field_counts["A"], "Float", desc, None, None, vcf.parser._encode_type("Float"))
+
+
+def zero_shot_score_vcf(args, recordIndices, logits, markovLogProbs=None):
     logging.info("Calculating zero-shot scores")
     nucleotides = ['A', 'C', 'G', 'T']
 
     reader = vcf.Reader(filename=args.inputVCF)
+    _add_info_header(reader, "plantCAD_zero_shot",
+                     "PlantCAD zero-shot score, log P(alt) - log P(ref), one per ALT")
+    if markovLogProbs is not None:
+        _add_info_header(reader, "plantCAD_markov_llr",
+                         "Genome-wide k-mer Markov background log P(alt) - log P(ref), one per ALT")
+        _add_info_header(reader, "plantCAD_zero_shot_corrected",
+                         "Markov-corrected PlantCAD zero-shot score (plantCAD_zero_shot - plantCAD_markov_llr), "
+                         "one per ALT")
     writer = vcf.Writer(open(args.output, "w"), reader)
 
     currentIdx = 0
 
     rIdx = 0
     for record in reader:
-        if currentIdx == recordIndices[rIdx]:
-            scores = []
+        if rIdx < len(recordIndices) and currentIdx == recordIndices[rIdx]:
+            scores, markovScores, corrected = [], [], []
 
             refAllele = record.REF
             refProb = logits[rIdx][nucleotides.index(refAllele)]
@@ -373,11 +464,22 @@ def zero_shot_score_vcf(args, recordIndices, logits):
                 if alt.type == "SNV":
                     altAllele = alt.sequence
                     altProb = logits[rIdx][nucleotides.index(altAllele)]
-                    scores.append(np.log(altProb / refProb))
+                    score = np.log(altProb / refProb)
+                    scores.append(score)
+                    if markovLogProbs is not None:
+                        m = (markovLogProbs[rIdx][nucleotides.index(altAllele)]
+                             - markovLogProbs[rIdx][nucleotides.index(refAllele)])
+                        markovScores.append(m)
+                        corrected.append(score - m)
                 else:
                     scores.append(".")
+                    markovScores.append(".")
+                    corrected.append(".")
 
             record.INFO["plantCAD_zero_shot"] = ",".join(str(zs) for zs in scores)
+            if markovLogProbs is not None:
+                record.INFO["plantCAD_markov_llr"] = ",".join(str(zs) for zs in markovScores)
+                record.INFO["plantCAD_zero_shot_corrected"] = ",".join(str(zs) for zs in corrected)
 
             writer.write_record(record)
 
@@ -468,7 +570,11 @@ def main():
 
         logits = extract_logits(model, loader, args.device, args.tokenIdx, tokenizer)
 
-        zero_shot_score_vcf(args, recordIndices, logits)
+        markovLogProbs = None
+        if args.markovTable is not None:
+            markovLogProbs = markov_log_probs(load_markov_model(args), sequences, args.tokenIdx)
+
+        zero_shot_score_vcf(args, recordIndices, logits, markovLogProbs)
         logging.info(f"Zero-shot scores saved to {args.output}")
 
     elif args.inputBed is not None:
@@ -479,8 +585,14 @@ def main():
         fasta_dict = load_fasta(args.inputFasta)
         bed_df = load_bed_file(args.inputBed)
 
+        markov = load_markov_model(args) if args.markovTable is not None else None
+
         # Extract sequences for all positions in BED regions
-        sequences, position_info, window_sizes = extract_sequences_from_bed(args, bed_df, fasta_dict)
+        if markov is not None:
+            sequences, position_info, window_sizes, markov_ctx = extract_sequences_from_bed(
+                args, bed_df, fasta_dict, markov_k=markov.k)
+        else:
+            sequences, position_info, window_sizes = extract_sequences_from_bed(args, bed_df, fasta_dict)
 
         if not sequences:
             logging.error("No valid sequences extracted. Check BED file and FASTA file.")
@@ -497,8 +609,14 @@ def main():
         probs = extract_logits(model, loader, args.device, args.tokenIdx, tokenizer, 
                                args.stepSize, window_sizes)
 
+        markov_logp = None
+        if markov is not None:
+            logging.info("Computing Markov background log-probabilities")
+            left, right = zip(*markov_ctx)
+            markov_logp = markov.log_probs(list(left), list(right))
+
         # Calculate LLRs
-        results = calculate_genome_wide_llr(position_info, probs, args.aggregation)
+        results = calculate_genome_wide_llr(position_info, probs, args.aggregation, markov_logp)
 
         # Write output
         write_llr_output(results, args.output, args.aggregation, args.outputRawProb)
