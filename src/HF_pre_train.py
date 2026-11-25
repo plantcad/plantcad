@@ -54,6 +54,8 @@ import pandas as pd
 from scipy.stats import geom
 from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
+from mamba_batch_limit import check_train_batch_size, safe_inference_batch_size
+
 
 class DataCollatorForLanguageModelingSimplified(DataCollatorForLanguageModeling):
     # Simplified to skip padding since we'll assume all sequences have the same length
@@ -475,6 +477,17 @@ def main():
         tokenizer=tokenizer,
         mlm_probability=data_args.mlm_probability,
     )
+
+    # Guard against the Mamba2 int32 overflow (see mamba_batch_limit)
+    if training_args.do_train:
+        check_train_batch_size(
+            model, len(train_dataset[0]["input_ids"]),
+            training_args.per_device_train_batch_size, training_args.gradient_accumulation_steps,
+        )
+    if training_args.do_eval:
+        training_args.per_device_eval_batch_size = safe_inference_batch_size(
+            model, len(eval_dataset[0]["input_ids"]), training_args.per_device_eval_batch_size
+        )
 
     # Initialize our Trainer
     trainer = Trainer(

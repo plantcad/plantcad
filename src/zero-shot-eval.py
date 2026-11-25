@@ -17,6 +17,8 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 from tqdm import tqdm
 
+from mamba_batch_limit import safe_inference_batch_size
+
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,14 @@ def _load_model(model_name: str, device: str):
     model.to(device)
     model.eval()
     return model, tok
+
+
+def _safe_batch_size(model, tokenizer, sequences: Sequence[pd.Series], batch_size: int) -> int:
+    """Lower batch_size if batch x length would overflow the Mamba2 kernels (see mamba_batch_limit)."""
+    seqs = pd.concat([s.astype(str) for s in sequences], ignore_index=True)
+    longest = seqs.iloc[int(seqs.str.len().to_numpy().argmax())]
+    n_tokens = len(tokenizer(longest)["input_ids"])
+    return safe_inference_batch_size(model, n_tokens, batch_size)
 
 
 class SingleMaskDataset(Dataset):
@@ -356,6 +366,7 @@ class ZeroShotEval:
         else:
             dev = _require_cuda(device)
             model_, tok = _load_model(model, dev)
+            batch_size = _safe_batch_size(model_, tok, [df[seq_column]], batch_size)
             dataset = SingleMaskDataset(df[seq_column], tok, token_idx)
             loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=1)
             probs = _masked_probs(model_, tok, loader, dev, desc=f"Masked logits @ {token_idx}")
@@ -420,6 +431,7 @@ class ZeroShotEval:
         else:
             dev = _require_cuda(device)
             model_, tok = _load_model(model, dev)
+            batch_size = _safe_batch_size(model_, tok, [df[seq_column]], batch_size)
             dataset = MultiMaskDataset(df[seq_column], tok, positions)
             loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=1)
             probs = _masked_probs(model_, tok, loader, dev, desc=f"Masked logits motif_len={motif_len}")
@@ -474,6 +486,7 @@ class ZeroShotEval:
 
         dev = _require_cuda(device)
         model_, tok = _load_model(model, dev)
+        batch_size = _safe_batch_size(model_, tok, [df["RefSeq"], df["MutSeq"]], batch_size)
 
         # Unmasked probabilities
         ref_probs = _unmasked_probs(df["RefSeq"], tok, model_, dev, batch_size, desc="Ref (unmasked)")
@@ -540,6 +553,7 @@ class ZeroShotEval:
         else:
             dev = _require_cuda(device)
             model_, tok = _load_model(model, dev)
+            batch_size = _safe_batch_size(model_, tok, [df[seq_column]], batch_size)
             dataset = MultiMaskDataset(df[seq_column], tok, positions)
             loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=1)
             probs = _masked_probs(model_, tok, loader, dev, desc=f"Masked logits (core/non-core) motif_len={motif_len}")

@@ -10,6 +10,8 @@ from sklearn import metrics
 import matplotlib.pyplot as plt
 import logging
 
+from mamba_batch_limit import safe_inference_batch_size
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-train", type=str, help="The directory of training data")
@@ -101,10 +103,13 @@ def extract_embeddings(model, dataloader, device, tokenIdx):
     with torch.no_grad():
         for batch in tqdm(dataloader):
             input_ids = batch['input_ids'].to(device)
-            with torch.inference_mode():
-                outputs = model(input_ids=input_ids, output_hidden_states=True)
-            token_embedding = outputs.hidden_states[-1][:, tokenIdx, :].to(torch.float32).cpu().numpy()
-            embeddings.append(token_embedding)
+            # Split batches that would overflow the Mamba2 kernels (see mamba_batch_limit)
+            chunk = safe_inference_batch_size(model, input_ids.shape[1], input_ids.shape[0])
+            for ids in input_ids.split(chunk):
+                with torch.inference_mode():
+                    outputs = model(input_ids=ids, output_hidden_states=True)
+                token_embedding = outputs.hidden_states[-1][:, tokenIdx, :].to(torch.float32).cpu().numpy()
+                embeddings.append(token_embedding)
     embeddings = np.concatenate(embeddings, axis=0)
     # average forward and reverse embeddings
     hidden_size = embeddings.shape[-1] // 2

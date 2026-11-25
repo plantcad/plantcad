@@ -25,10 +25,31 @@ Here are the inference speed benchmark results for PlantCaduceus (v1) and PlantC
 | PlantCAD2-Small   | 8192    | 64    | 24.89            | 19     | 155,649  |
 | PlantCAD2-Medium  | 8192    | 16    | 9.62             | 6.88   | 56,386   |
 | PlantCAD2-Medium  | 8192    | 32    | 17.62            | 6.76   | 55,342   |
-| PlantCAD2-Medium  | 8192    | 64    | 33.62            | 6.79   | 55,636   |
+| PlantCAD2-Medium  | 8192    | 64 †  | 33.62            | 6.79   | 55,636   |
 | PlantCAD2-Large   | 8192    | 16    | 14.89            | 3.92   | 32,111   |
 | PlantCAD2-Large   | 8192    | 32    | 26.95            | 3.87   | 31,741   |
-| PlantCAD2-Large   | 8192    | 64    | 51.09            | 3.89   | 31,833   |
+| PlantCAD2-Large   | 8192    | 64 †  | 51.09            | 3.89   | 31,833   |
+
+† Above the [batch size limit](#batch-size-limit-for-plantcad2) for this model and length: the timing is valid, but the model outputs at this batch size are wrong.
+
+## Batch size limit for PlantCAD2
+
+PlantCAD2 models use Mamba2 layers. Current releases of `mamba-ssm` compute memory offsets in these layers with 32-bit integers, which overflow once **batch size × sequence length × the layer's input-projection width** exceeds 2³¹. The sequences past that point in each batch then get wrong results. Sometimes the run stops with `CUDA error: an illegal memory access was encountered`, but often it finishes with no error at all (on GH200 we have only seen silent errors). Training is affected the same way, through wrong outputs and gradients.
+
+Largest safe batch size:
+
+| Model            | 2048 bp | 4096 bp | 8192 bp |
+| :--------------- | ------: | ------: | ------: |
+| PlantCAD2-Small  | 325     | 162     | 81      |
+| PlantCAD2-Medium | 246     | 123     | 61      |
+| PlantCAD2-Large  | 165     | 82      | 41      |
+
+The scripts in `src/` enforce this:
+
+- **Inference and embeddings** (`zero_shot_score.py`, `zero_shot_score_sv.py`, `zero-shot-eval.py`, `train_XGBoost.py`, `predict_XGBoost.py`, and `evaluate` / `predict` in `lora_fine_tune.py`) lower the batch size to the limit and log a warning. Results do not depend on the batch size.
+- **Training** (`train` in `lora_fine_tune.py`, and `HF_pre_train.py`) stops with an error that suggests a smaller batch size and more gradient-accumulation steps with the same effective batch size.
+
+If you run PlantCAD2 from your own code, keep the batch size at or below this table. PlantCaduceus (v1) uses Mamba1 and is not affected. Upstream: [state-spaces/mamba#1015](https://github.com/state-spaces/mamba/issues/1015) (fix proposed in [#1038](https://github.com/state-spaces/mamba/pull/1038), not yet released).
 
 ## Which model to use?
 
