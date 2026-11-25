@@ -59,7 +59,6 @@ python ../src/lora_fine_tune.py train \
   --learning_rate 1e-4 \
   --warmup_steps 50 \
   --lr_scheduler_type "linear" \
-  --gradient_accumulation_steps 1 \ # adjust to make global batch size of 64 or higher
   --bf16 True \
   --num_train_epochs 1 \
   --weight_decay 0.01 \
@@ -70,6 +69,10 @@ python ../src/lora_fine_tune.py train \
   --logging_steps 250 \
   --remove_unused_columns False
 ```
+
+> **Batch size:** `--train_batch_size` is required; pick it for your GPU memory. `--eval_batch_size` defaults to the same value, and `--gradient_accumulation_steps` is set automatically to reach an effective batch size of 128 (per-device batch × GPUs × accumulation steps; change the target with `--effective_batch_size`, or set `--gradient_accumulation_steps` yourself).
+>
+> With 8192-bp sequences, keep `--train_batch_size` at or below 81 (Small), 61 (Medium) or 41 (Large); larger batches overflow the Mamba2 kernels and give wrong gradients without an error. `train` stops with an error if the limit is exceeded. See [batch size limit](model-recommendations.md#batch-size-limit-for-plantcad2).
 
 ## Available Fine-tuned Models
 We also released a collection of [LoRA fine-tuned models](https://huggingface.co/collections/plantcad/fine-tuned-plantcad2-models-68b316a57616134fa7a1b6b6), tailored for key downstream tasks including accessible chromatin, gene expression, and protein translation.
