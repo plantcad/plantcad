@@ -11,6 +11,7 @@ from Bio import SeqIO
 import gzip
 
 from markov_background import MarkovBackground
+from mamba_batch_limit import safe_inference_batch_size
 
 
 def parse_args():
@@ -564,6 +565,7 @@ def main():
         sequences, recordIndices = seq_from_vcf(args)
 
         model, tokenizer = load_model_and_tokenizer(args.model, args.device)
+        args.batchSize = safe_inference_batch_size(model, args.contextSize, args.batchSize)
 
         logging.info("Creating data loader")
         loader = create_dataloader(sequences, tokenizer, args.batchSize, args.tokenIdx)
@@ -600,6 +602,7 @@ def main():
 
         # Load model and tokenizer
         model, tokenizer = load_model_and_tokenizer(args.model, args.device)
+        args.batchSize = safe_inference_batch_size(model, args.contextSize, args.batchSize)
 
         # Create dataloader with BED-specific settings
         loader = create_dataloader(sequences, tokenizer, args.batchSize, args.tokenIdx,

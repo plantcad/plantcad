@@ -32,6 +32,8 @@ from sklearn.metrics import (
 )
 from scipy.stats import spearmanr, pearsonr
 
+from mamba_batch_limit import check_train_batch_size, safe_inference_batch_size
+
 
 logger = logging.getLogger(__name__)
 
@@ -262,8 +264,8 @@ def train(
     model_name: Optional[str] = None,
     task_type: str = "classification",  # classification | regression | multi_label
     num_labels: Optional[int] = None,    # required for multi_label
-    train_batch_size: int = 43,
-    eval_batch_size: int = 3,
+    train_batch_size: Optional[int] = None,  # required; see docs/model-recommendations.md
+    eval_batch_size: Optional[int] = None,  # default: same as train_batch_size
     eval_num_samples: Optional[int] = 0,
     max_steps: int = 500,
     seed: int = 42,
@@ -273,7 +275,8 @@ def train(
     learning_rate: float = 1e-3,
     warmup_steps: int = 50,
     lr_scheduler_type: str = "linear",
-    gradient_accumulation_steps: int = 64,
+    gradient_accumulation_steps: Optional[int] = None,  # default: chosen to reach effective_batch_size
+    effective_batch_size: int = 128,
     bf16: bool = True,
     num_train_epochs: int = 3,
     weight_decay: float = 0.01,
@@ -288,6 +291,25 @@ def train(
     """Fine-tune PlantCAD2 with LoRA across multiple task types."""
     if model_name is None:
         raise ValueError("model_name is required")
+
+    if train_batch_size is None:
+        raise ValueError(
+            "train_batch_size is required. Choose it for your GPU memory and model; with 8192-bp "
+            "sequences it must be at most 81 (Small), 61 (Medium) or 41 (Large). "
+            "See docs/model-recommendations.md#batch-size-limit-for-plantcad2"
+        )
+    if eval_batch_size is None:
+        eval_batch_size = train_batch_size
+    if gradient_accumulation_steps is None:
+        # Trainer's batch per optimizer step = per-device batch x devices x accumulation steps
+        n_devices = int(os.environ.get("WORLD_SIZE", 0)) or max(1, torch.cuda.device_count())
+        gradient_accumulation_steps = max(1, round(effective_batch_size / (train_batch_size * n_devices)))
+        actual = train_batch_size * n_devices * gradient_accumulation_steps
+        logger.info(
+            "gradient_accumulation_steps=%d: %d per device x %d device(s) x %d = effective batch size %d%s",
+            gradient_accumulation_steps, train_batch_size, n_devices, gradient_accumulation_steps, actual,
+            "" if actual == effective_batch_size else f" (closest to the requested {effective_batch_size})",
+        )
 
     if task_type not in {"classification", "regression", "multi_label"}:
         raise ValueError("task_type must be one of {'classification','regression','multi_label'}")
@@ -388,6 +410,10 @@ def train(
         logger.info(f"Limiting eval dataset to {eval_num_samples} samples")
         eval_dataset = eval_dataset.select(range(min(eval_num_samples, len(eval_dataset))))
 
+    # Guard against the Mamba2 int32 overflow (see mamba_batch_limit)
+    check_train_batch_size(model, len(train_dataset[0]["input_ids"]), train_batch_size, gradient_accumulation_steps)
+    eval_batch_size = safe_inference_batch_size(model, len(eval_dataset[0]["input_ids"]), eval_batch_size)
+
     if use_wandb:
         os.environ["WANDB_PROJECT"] = wandb_project
 
@@ -476,6 +502,8 @@ def evaluate(
         max_index = max(max_index, 1)
         eval_dataset = eval_dataset.shuffle(seed=seed).select(range(max_index))
 
+    batch_size = safe_inference_batch_size(model, len(eval_dataset[0]["input_ids"]), batch_size)
+
     trainer_args = TrainingArguments(
         output_dir=output_dir,
         per_device_eval_batch_size=batch_size,
@@ -551,6 +579,8 @@ def predict(
         max_index = min(int(sampling_rate * len(dataset)), len(dataset))
         max_index = max(max_index, 1)
         dataset = dataset.shuffle(seed=seed).select(range(max_index))
+
+    batch_size = safe_inference_batch_size(model, len(dataset[0]["input_ids"]), batch_size)
 
     trainer_args = TrainingArguments(
         output_dir="/tmp",

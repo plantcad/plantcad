@@ -10,6 +10,8 @@ import vcf
 from Bio import SeqIO
 import gzip
 
+from mamba_batch_limit import safe_inference_batch_size
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -378,6 +380,7 @@ def main():
 
     # Load Model
     model, tokenizer = load_model_and_tokenizer(args.model, args.device)
+    args.batchSize = safe_inference_batch_size(model, args.contextSize, args.batchSize)
 
     # Inference on Ref
     logging.info("Running inference on Reference Sequences...")
